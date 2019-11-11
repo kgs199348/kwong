@@ -1,3 +1,3 @@
 file4.c
-:wq
+test git rm -r cached
 
