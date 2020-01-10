@@ -109,7 +109,7 @@ int main(void)
 				ev.data.fd = tar_sock_fd;
 				ev.events = EPOLLIN;
 				epoll_ctl(epollfd, EPOLL_CTL_ADD, tar_sock_fd, &ev);
-				
+
 				m_link.insert(std::pair<int,struct proxyLink *>{connfd,proxyLink});
 			}else {
 				int ret;
@@ -125,7 +125,9 @@ int main(void)
 						printf("terminated close from port %d\n", ntohs(cli_addr.sin_port));
 						if (m_link.find(sock_fd)!=m_link.end()) {
 							printf("m_link delete behind size =%d\n",m_link.size());
-							free(m_link.find(sock_fd)->second);
+							// free(m_link.find(sock_fd)->second);
+							delete m_link.find(sock_fd)->second;
+							m_link.find(sock_fd)->second = NULL;
 							m_link.erase(sock_fd);
 							printf("m_link delete fd=%d\n",sock_fd);
 							printf("m_link delete before size =%d\n",m_link.size());						
