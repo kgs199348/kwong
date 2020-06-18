@@ -1,0 +1,142 @@
+diff --git a/proxy_test/a.out b/proxy_test/a.out
+new file mode 100755
+index 0000000..f44cc91
+Binary files /dev/null and b/proxy_test/a.out differ
+diff --git a/proxy_test/proxy_client.cpp b/proxy_test/proxy_client.cpp
+index aec3d34..e45d1ed 100644
+--- a/proxy_test/proxy_client.cpp
++++ b/proxy_test/proxy_client.cpp
+@@ -9,9 +9,6 @@
+ #include <unistd.h>
+ #include <cerrno>
+ #include <sys/epoll.h>
+-#include <vector>
+-#include <map>
+-#include <stdlib.h>
+ /*local client*/
+ #define PROXY_PORT 	22
+ #define PROXY_IP   	"192.168.0.148"
+@@ -28,19 +25,11 @@
+ #define EPOLL_BUFFER_SIZE 256
+ #define SOMAXCONN 128
+ 
+-typedef struct proxyLink
+-{
+-	int src_fd;
+-	int tar_fd;
+-}proxyLink;
+-
+ 
+ char buf[PACKET_BUFFER_SIZE];
+ 
+ int main(void)
+ {
+-	std::map<int,struct proxyLink *>m_link;
+-	std::vector<proxyLink>m_proxyLink;
+ 	struct sockaddr_in src_addr,cli_addr;
+ 	const int flag = 1;
+ 	int sockfd;
+@@ -77,14 +66,11 @@ int main(void)
+ 				int len = sizeof(struct sockaddr_in);
+ 				connfd = accept(sockfd, (struct sockaddr *)&cli_addr,(socklen_t*)&len);
+ 
+-				proxyLink *proxyLink ;
+-				proxyLink = (struct proxyLink *)malloc(sizeof(struct proxyLink));
+ 				if(connfd < 0)
+ 				{
+ 					perror("accept error");
+ 					continue;
+ 				}
+-				proxyLink->src_fd = connfd;
+  
+ 				printf("connection from %s, port is %d\n", inet_ntop(AF_INET,&cli_addr.sin_addr,buf,sizeof(buf)),ntohs(cli_addr.sin_port));
+ 				ev.events = EPOLLIN;
+@@ -105,66 +91,50 @@ int main(void)
+ 				if(connect(tar_sock_fd,(const struct sockaddr*)&tar_addr, sizeof(struct sockaddr_in)) < 0) { 
+ 					return -1; 
+ 				}
+-				proxyLink->tar_fd = tar_sock_fd;
+ 				ev.data.fd = tar_sock_fd;
+ 				ev.events = EPOLLIN;
+ 				epoll_ctl(epollfd, EPOLL_CTL_ADD, tar_sock_fd, &ev);
+-				
+-				m_link.insert(std::pair<int,struct proxyLink *>{connfd,proxyLink});
+ 			}else {
+ 				int ret;
+ 				int sock_fd = events[i].data.fd;
+ 				if (events[i].events & EPOLLIN) {
+ 					if (sock_fd < 0) continue;
+ 					if ((ret = recv(sock_fd,buf,sizeof(buf),0)) < 0) {
+-						printf("terminated break from port %d\n", ntohs(cli_addr.sin_port));
+ 						close(sock_fd);
+ 						sock_fd = -1;
+ 						return false;
+ 					}else if (ret == 0) {
+-						printf("terminated close from port %d\n", ntohs(cli_addr.sin_port));
+-						if (m_link.find(sock_fd)!=m_link.end()) {
+-							printf("m_link delete behind size =%d\n",m_link.size());
+-							free(m_link.find(sock_fd)->second);
+-							m_link.erase(sock_fd);
+-							printf("m_link delete fd=%d\n",sock_fd);
+-							printf("m_link delete before size =%d\n",m_link.size());						
+-						}
++						printf("terminated from port %d\n", ntohs(cli_addr.sin_port));
+ 						close(sock_fd);
+ 						sock_fd = -1;
+ 					}else {
+-						// printf("sockfd=%d,read %d characters:", sock_fd,ret - 1);
+-						// for (int i=0;i<ret;i++) {
+-						// 	printf("%c",buf[i]);
+-						// }
+-						// printf("\n");
++						printf("sockfd=%d,read %d characters:", sock_fd,ret - 1);
++						for (int i=0;i<ret;i++) {
++							printf("%c",buf[i]);
++						}
++						printf("\n");
+ 						ev.data.fd = sock_fd;
+ 						ev.events = EPOLLOUT;
+ 						epoll_ctl(epollfd, EPOLL_CTL_MOD, sock_fd, &ev);
+ 					}
+ 				}
+ 				if (events[i].events & EPOLLOUT) {
+-					std::map<int,struct proxyLink *>::iterator iter;
+-					// std::cout << "m_link size = " << m_link.size() << std::endl;
+-					for (iter = m_link.begin();iter!=m_link.end();iter++) {
+-						if (iter->second->src_fd == sock_fd) {
+-							send(iter->second->tar_fd,buf,ret,0);
+-							ret = 0;
+-							bzero(buf,sizeof(buf));
+-							struct epoll_event ev;
+-							ev.data.fd = sock_fd;
+-							ev.events = EPOLLIN;
+-							epoll_ctl(epollfd, EPOLL_CTL_MOD, sock_fd, &ev);
+-						}
+-						else if (iter->second->tar_fd == sock_fd) {
+-							send(iter->second->src_fd,buf,ret,0);
+-							ret = 0;
+-							bzero(buf,sizeof(buf));
+-							struct epoll_event ev;
+-							ev.data.fd = sock_fd;
+-							ev.events = EPOLLIN;
+-							epoll_ctl(epollfd, EPOLL_CTL_MOD, sock_fd, &ev);
+-						}
++					if (sock_fd == connfd) {
++						send(tar_sock_fd,buf,ret,0);
++						ret = 0;
++						bzero(buf,sizeof(buf));
++						struct epoll_event ev;
++						ev.data.fd = sock_fd;
++						ev.events = EPOLLIN;
++						epoll_ctl(epollfd, EPOLL_CTL_MOD, sock_fd, &ev);
++					}else if (sock_fd == tar_sock_fd) {
++						send(connfd,buf,ret,0);
++						ret = 0;
++						bzero(buf,sizeof(buf));
++						struct epoll_event ev;
++						ev.data.fd = sock_fd;
++						ev.events =  EPOLLIN;
++						epoll_ctl(epollfd, EPOLL_CTL_MOD, sock_fd, &ev);
+ 					}
+ 				}
+ 			}
